@@ -75,7 +75,8 @@
           }
         }
       ],
-      "./plugins/withAndroidSubprojects.js"
+      "./plugins/withAndroidSubprojects.js",
+      "./plugins/withIosModularHeaders.js"
     ],
     "experiments": {
       "typedRoutes": true,

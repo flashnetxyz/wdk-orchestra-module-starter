@@ -45,3 +45,7 @@ app-example
 
 .env
 .npmrc
+
+# Generated worklet bundle (~9MB). Rebuild with `npm run bundle`.
+/.wdk
+/wdk-bundle

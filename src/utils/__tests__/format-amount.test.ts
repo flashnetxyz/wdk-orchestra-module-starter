@@ -20,9 +20,9 @@ describe('formatAmount', () => {
   });
 
   test('formats a number with a custom minimumFractionDigits', () => {
-    expect(
-      formatAmount(10, { minimumFractionDigits: 4, maximumFractionDigits: 4 })
-    ).toBe('10.0000');
+    expect(formatAmount(10, { minimumFractionDigits: 4, maximumFractionDigits: 4 })).toBe(
+      '10.0000'
+    );
   });
 
   test('formats a number with a custom maximumFractionDigits', () => {

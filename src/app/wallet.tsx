@@ -13,15 +13,20 @@
 // limitations under the License.
 
 import { BalanceLoader } from '@/components/BalanceLoader';
-import { useWallet, useWalletManager, useBalancesForWallet, useRefreshBalance } from '@tetherto/wdk-react-native-core';
+import {
+  useWalletManager,
+  useBalancesForWallet,
+  useRefreshBalance,
+} from '@tetherto/wdk-react-native-core';
+import { useWallet } from '@/hooks/use-wallet';
 import { Balance } from '@tetherto/wdk-uikit-react-native';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
 import { useFocusEffect } from 'expo-router';
 import {
   ArrowDownLeft,
+  ArrowLeftRight,
   ArrowUpRight,
   Palette,
-  QrCode,
   Settings,
   Shield,
   Star,
@@ -41,7 +46,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AssetConfig, assetConfig, AssetTicker } from '../config/assets';
-import getTokenConfigs from '../config/get-token-configs';
+import getTokenConfigs, { getAssetMeta, getAssets } from '../config/get-token-configs';
 import { FiatCurrency, pricingService } from '../services/pricing-service';
 import { getNetworkMode, NetworkMode } from '../services/network-mode-service';
 import formatAmount from '@/utils/format-amount';
@@ -85,11 +90,18 @@ export default function WalletScreen() {
     return getTokenConfigs(networkMode!);
   }, [networkMode, networkModeLoaded]);
 
-  const { data: balanceResults, isLoading: isLoadingBalances, refetch } = useBalancesForWallet(
-    0,
-    tokenConfigs,
-    { enabled: isInitialized && networkModeLoaded && Object.keys(tokenConfigs).length > 0 }
-  );
+  const balanceAssets = useMemo(() => {
+    if (!networkModeLoaded) return [];
+    return getAssets(networkMode!);
+  }, [networkMode, networkModeLoaded]);
+
+  const {
+    data: balanceResults,
+    isLoading: isLoadingBalances,
+    refetch,
+  } = useBalancesForWallet(0, balanceAssets, {
+    enabled: isInitialized && networkModeLoaded && balanceAssets.length > 0,
+  });
 
   const [refreshing, setRefreshing] = useState(false);
   const [aggregatedBalances, setAggregatedBalances] = useState<AggregatedBalance>([]);
@@ -117,25 +129,10 @@ export default function WalletScreen() {
     balanceResults.forEach((result) => {
       if (!result.success || !result.balance) return;
 
-      const tokenAddress = result.tokenAddress;
-      let denomination = 'unknown';
+      const meta = getAssetMeta(tokenConfigs, result.network, result.assetId);
+      const denomination = meta ? meta.config.symbol.toLowerCase() : 'unknown';
 
-      const networkTokens = tokenConfigs[result.network];
-      if (networkTokens) {
-        if (tokenAddress === null) {
-          denomination = networkTokens.native.symbol.toLowerCase();
-        } else {
-          const token = networkTokens.tokens.find(t => t.address?.toLowerCase() === tokenAddress?.toLowerCase());
-          if (token) {
-            denomination = token.symbol.toLowerCase();
-          }
-        }
-      }
-
-      const balanceNum = parseFloat(result.balance) / Math.pow(10,
-        tokenAddress === null ? networkTokens?.native.decimals || 18 :
-        networkTokens?.tokens.find(t => t.address?.toLowerCase() === tokenAddress?.toLowerCase())?.decimals || 6
-      );
+      const balanceNum = parseFloat(result.balance) / Math.pow(10, meta?.config.decimals ?? 18);
 
       const current = map.get(denomination) || { totalBalance: 0 };
       map.set(denomination, {
@@ -147,11 +144,17 @@ export default function WalletScreen() {
       const config = assetConfig[denomination];
       if (!config) return null;
 
-      const fiatValue = await pricingService.getFiatValue(
-        totalBalance,
-        denomination as AssetTicker,
-        FiatCurrency.USD
-      );
+      // Prices are cosmetic on this screen. If the lookup throws, the whole
+      // Promise.all rejects and the asset list silently sticks at empty — so
+      // degrade to a 0.00 USD value instead of losing the balances.
+      let fiatValue = 0;
+      try {
+        fiatValue = await pricingService.getFiatValue(
+          totalBalance,
+          denomination as AssetTicker,
+          FiatCurrency.USD
+        );
+      } catch {}
 
       return {
         denomination,
@@ -209,8 +212,8 @@ export default function WalletScreen() {
     router.push('/receive/select-token');
   };
 
-  const handleQRPress = () => {
-    router.push('/scan-qr');
+  const handleSwapPress = () => {
+    router.push('/swap');
   };
 
   const handleSeeAllTokens = () => {
@@ -430,18 +433,6 @@ export default function WalletScreen() {
             ))}
           </View>
         </View>
-
-        <View style={styles.activitySection}>
-          <View
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            <Text style={styles.sectionTitle}>Activity</Text>
-          </View>
-
-          <View style={styles.noAssetsContainer}>
-            <Text style={styles.noAssetsText}>No transactions yet</Text>
-          </View>
-        </View>
       </ScrollView>
 
       <View style={[styles.bottomActions, { marginBottom: insets.bottom }]}>
@@ -450,8 +441,9 @@ export default function WalletScreen() {
           <Text style={styles.actionButtonText}>Send</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.qrButton} onPress={handleQRPress}>
-          <QrCode size={24} color={colors.black} />
+        <TouchableOpacity style={styles.actionButton} onPress={handleSwapPress}>
+          <ArrowLeftRight size={20} color={colors.white} />
+          <Text style={styles.actionButtonText}>Swap</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton} onPress={handleReceivePress}>
@@ -542,8 +534,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   assetIconImage: {
-    width: 24,
-    height: 24,
+    width: 40,
+    height: 40,
   },
   assetName: {
     fontSize: 16,
@@ -612,10 +604,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 16,
   },
-  activitySection: {
-    paddingHorizontal: 20,
-    marginBottom: 32,
-  },
   bottomActions: {
     position: 'absolute',
     bottom: 20,
@@ -647,14 +635,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: 4,
-  },
-  qrButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 20,
-    backgroundColor: colors.primary,
   },
 });

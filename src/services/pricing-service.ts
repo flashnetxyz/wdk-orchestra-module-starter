@@ -37,24 +37,29 @@ class PricingService {
   }
 
   async initialize(): Promise<void> {
-    if (this.provider) return;
+    // Guard on isInitialized, not provider: provider must only be assigned on
+    // success, otherwise a failed first attempt (e.g. a rate-limited price
+    // fetch) would make every later initialize() an early-return no-op and
+    // getFiatValue would throw until the app restarts.
+    if (this.isInitialized) return;
 
     try {
       const client = new BitfinexPricingClient();
 
-      this.provider = new PricingProvider({
+      const provider = new PricingProvider({
         client,
         priceCacheDurationMs: 1000 * 60 * 60, // 1 hour
       });
 
       this.fiatExchangeRateCache = {
         [FiatCurrency.USD]: {
-          btc: await this.provider.getLastPrice('btc', FiatCurrency.USD),
+          btc: await provider.getLastPrice('btc', FiatCurrency.USD),
           usdt: 1,
-          xaut: await this.provider.getLastPrice('xaut', FiatCurrency.USD),
+          xaut: await provider.getLastPrice('xaut', FiatCurrency.USD),
         },
       };
 
+      this.provider = provider;
       this.isInitialized = true;
     } catch (error) {
       console.error('Failed to initialize pricing service:', error);

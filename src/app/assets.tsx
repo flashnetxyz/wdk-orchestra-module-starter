@@ -13,14 +13,15 @@
 // limitations under the License.
 
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { useWallet, useWalletManager, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { useWalletManager, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { useWallet } from '@/hooks/use-wallet';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Asset, AssetTicker, assetConfig } from '../config/assets';
-import getTokenConfigs from '../config/get-token-configs';
+import getTokenConfigs, { getAssetMeta, getAssets } from '../config/get-token-configs';
 import formatAmount from '@/utils/format-amount';
 import getDisplaySymbol from '@/utils/get-display-symbol';
 import formatTokenAmount from '@/utils/format-token-amount';
@@ -53,8 +54,14 @@ export default function AssetsScreen() {
     return getTokenConfigs(networkMode);
   }, [networkMode, networkModeLoaded]);
 
-  const { data: balanceResults, isLoading } = useBalancesForWallet(0, tokenConfigs, {
-    enabled: isInitialized && networkModeLoaded && Object.keys(tokenConfigs).length > 0,
+  // Flat IAsset[] for the balance hook; `assets` above is the display list.
+  const balanceAssets = useMemo(() => {
+    if (!networkModeLoaded) return [];
+    return getAssets(networkMode);
+  }, [networkMode, networkModeLoaded]);
+
+  const { data: balanceResults, isLoading } = useBalancesForWallet(0, balanceAssets, {
+    enabled: isInitialized && networkModeLoaded && balanceAssets.length > 0,
   });
 
   const getAssetsWithFiatValue = async () => {
@@ -65,29 +72,10 @@ export default function AssetsScreen() {
     balanceResults.forEach((result) => {
       if (!result.success || !result.balance) return;
 
-      const tokenAddress = result.tokenAddress;
-      let denomination = 'unknown';
+      const meta = getAssetMeta(tokenConfigs, result.network, result.assetId);
+      const denomination = meta ? meta.config.symbol.toLowerCase() : 'unknown';
 
-      const networkTokens = tokenConfigs[result.network];
-      if (networkTokens) {
-        if (tokenAddress === null) {
-          denomination = networkTokens.native.symbol.toLowerCase();
-        } else {
-          const token = networkTokens.tokens.find((t) => t.address?.toLowerCase() === tokenAddress?.toLowerCase());
-          if (token) {
-            denomination = token.symbol.toLowerCase();
-          }
-        }
-      }
-
-      const balanceNum =
-        parseFloat(result.balance) /
-        Math.pow(
-          10,
-          tokenAddress === null
-            ? networkTokens?.native.decimals || 18
-            : networkTokens?.tokens.find((t) => t.address?.toLowerCase() === tokenAddress?.toLowerCase())?.decimals || 6
-        );
+      const balanceNum = parseFloat(result.balance) / Math.pow(10, meta?.config.decimals ?? 18);
 
       const current = balanceMap.get(denomination) || { totalBalance: 0 };
       balanceMap.set(denomination, {
@@ -105,11 +93,16 @@ export default function AssetsScreen() {
 
         const symbol = getDisplaySymbol(denomination);
 
-        const fiatValue = await pricingService.getFiatValue(
-          totalBalance,
-          denomination as AssetTicker,
-          FiatCurrency.USD
-        );
+        // A failed price lookup must not reject the whole Promise.all and
+        // blank the list; show the balance with a 0.00 USD value instead.
+        let fiatValue = 0;
+        try {
+          fiatValue = await pricingService.getFiatValue(
+            totalBalance,
+            denomination as AssetTicker,
+            FiatCurrency.USD
+          );
+        } catch {}
 
         return {
           id: denomination,
@@ -234,8 +227,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   assetIconImage: {
-    width: 32,
-    height: 32,
+    width: 48,
+    height: 48,
   },
   assetDetails: {
     flex: 1,

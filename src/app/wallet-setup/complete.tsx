@@ -25,7 +25,7 @@ export default function CompleteScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ walletName: string; mnemonic: string }>();
-  const { initializeFromMnemonic } = useWalletManager();
+  const { restoreWallet } = useWalletManager();
   const [walletCreated, setWalletCreated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -42,7 +42,7 @@ export default function CompleteScreen() {
       const walletName = params.walletName || 'My Wallet';
       const mnemonic = params.mnemonic.split(',').join(' ');
 
-      await initializeFromMnemonic(mnemonic, 'default');
+      await restoreWallet(mnemonic, 'default');
       await setWalletName(walletName);
 
       setWalletCreated(true);

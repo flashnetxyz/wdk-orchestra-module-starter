@@ -47,7 +47,7 @@ export const OnBoardingWelcome: React.FC<Props> = ({ title, subtitle, actionButt
         <Text style={styles.subtitle}>{subtitle}</Text>
 
         <View style={styles.actionButtonsContainer}>
-          {actionButtons.map(button => (
+          {actionButtons.map((button) => (
             <TouchableOpacity
               key={button.id}
               style={[

@@ -16,10 +16,10 @@ import { Network, NetworkSelector } from '@/components/NetworkSelector';
 import { assetConfig, AssetTicker } from '@/config/assets';
 import { networkConfigs, NetworkType } from '@/config/networks';
 import formatAmount from '@/utils/format-amount';
-import { useWallet, useWalletManager, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import getTokenConfigs from '@/config/get-token-configs';
-import { useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useWalletManager, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { useWallet } from '@/hooks/use-wallet';
+import getTokenConfigs, { getAssetMeta, getAssets } from '@/config/get-token-configs';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -64,8 +64,13 @@ export default function SelectNetworkScreen() {
     return getTokenConfigs(networkMode);
   }, [networkMode, networkModeLoaded]);
 
-  const { data: balanceResults } = useBalancesForWallet(0, tokenConfigs, {
-    enabled: isInitialized && networkModeLoaded && Object.keys(tokenConfigs).length > 0
+  const balanceAssets = useMemo(() => {
+    if (!networkModeLoaded) return [];
+    return getAssets(networkMode);
+  }, [networkMode, networkModeLoaded]);
+
+  const { data: balanceResults } = useBalancesForWallet(0, balanceAssets, {
+    enabled: isInitialized && networkModeLoaded && balanceAssets.length > 0,
   });
 
   useEffect(() => {
@@ -88,23 +93,16 @@ export default function SelectNetworkScreen() {
           const networkTokens = tokenConfigs[result.network];
           if (!networkTokens) return;
 
-          let matchedSymbol = '';
-          let decimals = 18;
-
-          if (result.tokenAddress === null) {
-            matchedSymbol = networkTokens.native.symbol.toLowerCase();
-            decimals = networkTokens.native.decimals;
-          } else {
-            const token = networkTokens.tokens.find((t) => t.address?.toLowerCase() === result.tokenAddress?.toLowerCase());
-            if (token) {
-              matchedSymbol = token.symbol.toLowerCase();
-              decimals = token.decimals;
-            }
-          }
+          const meta = getAssetMeta(tokenConfigs, result.network, result.assetId);
+          const matchedSymbol = meta ? meta.config.symbol.toLowerCase() : '';
+          const decimals = meta?.config.decimals ?? 18;
 
           if (matchedSymbol === tokenId.toLowerCase()) {
             const balanceNum = parseFloat(result.balance) / Math.pow(10, decimals);
-            networkBalanceMap.set(result.network, (networkBalanceMap.get(result.network) || 0) + balanceNum);
+            networkBalanceMap.set(
+              result.network,
+              (networkBalanceMap.get(result.network) || 0) + balanceNum
+            );
           }
         });
       }
@@ -120,9 +118,8 @@ export default function SelectNetworkScreen() {
             FiatCurrency.USD
           );
 
-          const displayName = network.id === 'spark' && networkMode === 'testnet'
-            ? 'Spark Regtest'
-            : network.name;
+          const displayName =
+            network.id === 'spark' && networkMode === 'testnet' ? 'Spark Regtest' : network.name;
 
           return {
             ...network,

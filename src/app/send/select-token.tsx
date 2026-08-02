@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import { assetConfig, AssetTicker } from '@/config/assets';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
-import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/constants/colors';
-import { useWallet, useWalletManager, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import getTokenConfigs from '@/config/get-token-configs';
+import { useWalletManager, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { useWallet } from '@/hooks/use-wallet';
+import getTokenConfigs, { getAssetMeta, getAssets } from '@/config/get-token-configs';
 import { AssetSelector, type Token } from '@tetherto/wdk-uikit-react-native';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import formatAmount from '@/utils/format-amount';
@@ -49,10 +49,7 @@ export default function SelectTokenScreen() {
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
-        const [recent, mode] = await Promise.all([
-          getRecentTokens('send'),
-          getNetworkMode(),
-        ]);
+        const [recent, mode] = await Promise.all([getRecentTokens('send'), getNetworkMode()]);
         setRecentTokens(recent);
         setNetworkMode(mode);
         setNetworkModeLoaded(true);
@@ -66,8 +63,13 @@ export default function SelectTokenScreen() {
     return getTokenConfigs(networkMode);
   }, [networkMode, networkModeLoaded]);
 
-  const { data: balanceResults } = useBalancesForWallet(0, tokenConfigs, {
-    enabled: isInitialized && networkModeLoaded && Object.keys(tokenConfigs).length > 0
+  const balanceAssets = useMemo(() => {
+    if (!networkModeLoaded) return [];
+    return getAssets(networkMode);
+  }, [networkMode, networkModeLoaded]);
+
+  const { data: balanceResults } = useBalancesForWallet(0, balanceAssets, {
+    enabled: isInitialized && networkModeLoaded && balanceAssets.length > 0,
   });
 
   useEffect(() => {
@@ -85,19 +87,9 @@ export default function SelectTokenScreen() {
         const networkTokens = tokenConfigs[result.network];
         if (!networkTokens) return;
 
-        let denomination = '';
-        let decimals = 18;
-
-        if (result.tokenAddress === null) {
-          denomination = networkTokens.native.symbol.toLowerCase();
-          decimals = networkTokens.native.decimals;
-        } else {
-          const token = networkTokens.tokens.find((t) => t.address?.toLowerCase() === result.tokenAddress?.toLowerCase());
-          if (token) {
-            denomination = token.symbol.toLowerCase();
-            decimals = token.decimals;
-          }
-        }
+        const meta = getAssetMeta(tokenConfigs, result.network, result.assetId);
+        const denomination = meta ? meta.config.symbol.toLowerCase() : '';
+        const decimals = meta?.config.decimals ?? 18;
 
         if (!denomination) return;
 
@@ -117,7 +109,11 @@ export default function SelectTokenScreen() {
 
         let usdValue = 0;
         try {
-          usdValue = await pricingService.getFiatValue(totalBalance, assetSymbol as AssetTicker, FiatCurrency.USD);
+          usdValue = await pricingService.getFiatValue(
+            totalBalance,
+            assetSymbol as AssetTicker,
+            FiatCurrency.USD
+          );
         } catch {
           usdValue = 0;
         }
@@ -174,7 +170,11 @@ export default function SelectTokenScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Header title="Send funds" style={styles.header} />
-      <AssetSelector tokens={tokens} recentTokens={recentTokens} onSelectToken={handleSelectToken} />
+      <AssetSelector
+        tokens={tokens}
+        recentTokens={recentTokens}
+        onSelectToken={handleSelectToken}
+      />
     </View>
   );
 }

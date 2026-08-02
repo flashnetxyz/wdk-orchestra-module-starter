@@ -76,8 +76,10 @@ export const networkConfigs: Record<NetworkType, Network> = {
     name: 'Spark',
     gasLevel: 'Low',
     gasColor: '#34C759',
-    icon: require('../../assets/images/chains/bitcoin-btc-logo.png'),
-    color: '#F7931A',
+    icon: require('../../assets/images/chains/spark-logo.png'),
+    // Spark's mark is a black asterisk on white; screens use this color as the
+    // circular backdrop behind the (transparent) icon.
+    color: '#FFFFFF',
     accountType: 'Native',
     addressValidator: validateSparkAddress,
     explorerUrl: 'https://sparkscan.io/tx/',

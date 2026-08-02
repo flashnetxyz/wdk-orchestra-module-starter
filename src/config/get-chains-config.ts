@@ -33,7 +33,10 @@ type ChainConfig = {
 const MAINNET_CHAINS: string[] = ['ethereum', 'polygon', 'arbitrum', 'spark', 'plasma'];
 const TESTNET_CHAINS: string[] = ['sepolia', 'spark'];
 
-const getChainsConfig = (sparkNetwork: SparkNetworkMode = 'MAINNET', networkMode?: NetworkMode): Record<string, ChainConfig> => {
+const getChainsConfig = (
+  sparkNetwork: SparkNetworkMode = 'MAINNET',
+  networkMode?: NetworkMode
+): Record<string, ChainConfig> => {
   const allChains: Record<string, ChainConfig> = {
     sepolia: {
       chainId: 11155111,
@@ -68,7 +71,9 @@ const getChainsConfig = (sparkNetwork: SparkNetworkMode = 'MAINNET', networkMode
     ethereum: {
       chainId: 1,
       blockchain: 'ethereum',
-      provider: 'https://eth.merkle.io',
+      // eth.merkle.io started answering with a Cloudflare 403 challenge page,
+      // which surfaced as a "Failed to fetch balance" toast on every refresh.
+      provider: 'https://ethereum-rpc.publicnode.com',
       bundlerUrl: 'https://api.candide.dev/public/v3/ethereum',
       paymasterUrl: 'https://api.candide.dev/public/v3/ethereum',
       paymasterAddress: '0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba',
@@ -96,7 +101,8 @@ const getChainsConfig = (sparkNetwork: SparkNetworkMode = 'MAINNET', networkMode
     polygon: {
       chainId: 137,
       blockchain: 'polygon',
-      provider: 'https://polygon-rpc.com',
+      // polygon-rpc.com now 401s ("API key disabled, tenant disabled").
+      provider: 'https://polygon-bor-rpc.publicnode.com',
       bundlerUrl: 'https://api.candide.dev/public/v3/polygon',
       paymasterUrl: 'https://api.candide.dev/public/v3/polygon',
       paymasterAddress: '0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba',

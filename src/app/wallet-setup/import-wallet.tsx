@@ -83,7 +83,7 @@ export default function ImportWalletScreen() {
   };
 
   const isFormValid = () => {
-    return secretWords.every(word => word.trim().length > 0);
+    return secretWords.every((word) => word.trim().length > 0);
   };
 
   const validateSeedPhrase = (phrase: string): boolean => {

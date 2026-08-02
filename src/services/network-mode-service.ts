@@ -35,10 +35,7 @@ export const getNetworksForMode = (mode: NetworkMode): NetworkType[] => {
   return mode === 'testnet' ? TESTNET_NETWORKS : MAINNET_NETWORKS;
 };
 
-export const filterNetworksByMode = (
-  networks: NetworkType[],
-  mode: NetworkMode
-): NetworkType[] => {
+export const filterNetworksByMode = (networks: NetworkType[], mode: NetworkMode): NetworkType[] => {
   const allowedNetworks = getNetworksForMode(mode);
   return networks.filter((network) => allowedNetworks.includes(network));
 };

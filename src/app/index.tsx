@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useWallet, useWalletManager } from '@tetherto/wdk-react-native-core';
+import { useWalletManager } from '@tetherto/wdk-react-native-core';
+import { useWallet } from '@/hooks/use-wallet';
 import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -20,7 +21,7 @@ import { pricingService } from '../services/pricing-service';
 import { colors } from '@/constants/colors';
 
 export default function Index() {
-  const { wallets, activeWalletId, refreshWalletList } = useWalletManager();
+  const { wallets, activeWalletId } = useWalletManager();
   const currentWalletId = activeWalletId || wallets[0]?.identifier || 'default';
   const { isInitialized } = useWallet({ walletId: currentWalletId });
   const [isReady, setIsReady] = useState(false);
@@ -32,11 +33,11 @@ export default function Index() {
       } catch (error) {
         console.error('Failed to initialize pricing service:', error);
       }
-      await refreshWalletList();
+      // beta.15 keeps the wallet list reactive; no manual refresh needed.
       setIsReady(true);
     };
     initialize();
-  }, [refreshWalletList]);
+  }, []);
 
   if (!isReady) {
     return (
@@ -53,7 +54,7 @@ export default function Index() {
     );
   }
 
-  const walletExists = wallets.some(w => w.exists);
+  const walletExists = wallets.some((w) => w.exists);
 
   if (!walletExists) {
     return <Redirect href="/onboarding" />;

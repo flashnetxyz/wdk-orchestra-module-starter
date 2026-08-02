@@ -53,10 +53,7 @@ export default function ReceiveSelectTokenScreen() {
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
-        const [recent, mode] = await Promise.all([
-          getRecentTokens('receive'),
-          getNetworkMode(),
-        ]);
+        const [recent, mode] = await Promise.all([getRecentTokens('receive'), getNetworkMode()]);
         setRecentTokens(recent);
         setNetworkMode(mode);
       };
@@ -85,7 +82,7 @@ export default function ReceiveSelectTokenScreen() {
     if (!searchQuery) return tokens;
     const query = searchQuery.toLowerCase();
     return tokens.filter(
-      token =>
+      (token) =>
         token.name.toLowerCase().includes(query) || token.symbol.toLowerCase().includes(query)
     );
   }, [searchQuery, tokens]);
@@ -117,7 +114,7 @@ export default function ReceiveSelectTokenScreen() {
   }, []);
 
   const renderRecentToken = (tokenName: string) => {
-    const token = tokens.find(t => t.name === tokenName);
+    const token = tokens.find((t) => t.name === tokenName);
     if (!token) return null;
 
     return (
@@ -203,7 +200,7 @@ export default function ReceiveSelectTokenScreen() {
           <FlatList
             data={filteredTokens}
             renderItem={renderToken}
-            keyExtractor={item => item.id}
+            keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.tokensList}
           />
@@ -285,8 +282,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   recentTokenIconImage: {
-    width: 28,
-    height: 28,
+    width: 48,
+    height: 48,
   },
   recentTokenName: {
     fontSize: 12,
@@ -318,8 +315,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   tokenIconImage: {
-    width: 24,
-    height: 24,
+    width: 40,
+    height: 40,
   },
   tokenName: {
     fontSize: 16,

@@ -1,17 +1,86 @@
-# @tetherto/wdk-starter-react-native
+# wdk-orchestra-module-starter
+
+A self-custody, multi-chain mobile wallet with **cross-chain swaps built in** — a fork of
+[`tetherto/wdk-starter-react-native`](https://github.com/tetherto/wdk-starter-react-native)
+that adds [Flashnet Orchestra](https://docs.flashnet.xyz/products/orchestration/overview)
+as a WDK swidge protocol.
+
+Swap USDT on Arbitrum for BTC on Spark — or any of ~2,800 routes — from inside the wallet,
+without giving up custody of your keys.
 
 > [!WARNING]
-> **Alpha Software**
-> 
-> This starter template is currently in **alpha** stage and under active development. It may contain bugs, incomplete features, and breaking changes. **Do not use in production environments or with real funds.** 
-> 
-> For production use, please wait for the stable release or use at your own risk in development/testing environments only.
+> **Alpha software, real funds.** Both the upstream starter and the Orchestra module are
+> alpha. Orchestra routes are **mainnet only** — a completed swap moves real money. Test
+> with small amounts and read [State and Recovery](https://docs.wallet.tether.io/sdk/swidge-modules/swidge-orchestra/guides/state-and-recovery)
+> before going near production.
 
-An Expo + React Native starter demonstrating how to build a secure, multi-chain, non-custodial wallet using the WDK (Wallet Development Kit). This wallet uses **ERC-4337 (Account Abstraction)** with **Safe smart contract accounts** on EVM networks, enabling gasless transactions through paymasters. Features BareKit worklets for cryptographic operations, secure secret management, and a complete wallet implementation with onboarding, transactions, and asset management.
+## What this fork adds
 
-> **Note**: This starter currently implements ERC-4337 Safe accounts for EVM networks. Support for regular EOA (Externally Owned Account) wallets on additional networks is planned for future releases.
+The Orchestra integration itself is five files:
 
-Click below to see the wallet in action:
+| File | Purpose |
+| --- | --- |
+| [`wdk.config.js`](wdk.config.js) | Declares the worklet bundle, including the Orchestra protocol module |
+| [`src/config/get-wdk-configs.ts`](src/config/get-wdk-configs.ts) | Registers one Orchestra instance per source chain (Arbitrum and Polygon) |
+| [`src/app/swap.tsx`](src/app/swap.tsx) | The swap screen — asset pickers for both sides, balances with a fee-aware Max, live quotes, two-step execute, order tracking |
+| [`src/hooks/use-wallet.ts`](src/hooks/use-wallet.ts) | Compatibility shim for the upstream `useWallet` hook |
+| [`plugins/withIosModularHeaders.js`](plugins/withIosModularHeaders.js) | Podfile fix so the Spark module's Swift pods build on iOS |
+
+There is also a **dependency upgrade** that touches more files than that. Upstream
+`develop` pins `@tetherto/wdk-react-native-core` to a GitHub commit that predates
+`useProtocol` — and which no longer installs, because its own `pear-wrk-wdk#v2`
+dependency points at a deleted branch over `git+ssh`. This fork moves to the published
+`1.0.0-beta.15`, whose API differs enough to require mechanical updates across the wallet
+screens (hook renames, `IAsset[]` balance queries, `assetId` instead of `tokenAddress`).
+
+[docs/ORCHESTRA.md](docs/ORCHESTRA.md) documents that migration in full, with a
+before/after table.
+
+Finally, the fork carries a handful of **fixes and polish to the base wallet** that a
+demo surfaces quickly (upstream candidates, kept in separate files/commits so they are
+easy to cherry-pick):
+
+- Replaced two dead default RPC endpoints (`eth.merkle.io` now serves a Cloudflare 403,
+  `polygon-rpc.com` a 401) with PublicNode equivalents in
+  [`src/config/get-chains-config.ts`](src/config/get-chains-config.ts).
+- Pricing-service hardening: initialise at the root layout (not only the `/` route), let
+  a failed initialise retry, and stop a single failed price lookup from blanking the
+  whole asset list ([details](src/services/pricing-service.ts)).
+- Wallet home: action bar is Send / Swap / Receive, the unwired Activity section is
+  removed, and asset logos render without background disks.
+- Spark network branding: the Spark asterisk mark ([`assets/images/chains/spark-logo.png`](assets/images/chains/spark-logo.png),
+  from the official WDK docs assets) instead of the Bitcoin logo.
+
+## How it works
+
+The WDK engine runs inside a **Bare worklet** on its own thread. Orchestra ships a `bare`
+export and is compiled *into that bundle*, so it runs next to the wallet accounts rather
+than talking to them across the bridge:
+
+```
+React Native (JS thread)              │  Bare worklet (separate thread)
+                                      │
+useProtocol({                         │  WDK engine
+  network: 'arbitrum',                │   ├── wallet modules (evm-erc-4337, spark, …)
+  accountIndex: 0,                    │   └── protocol modules
+  protocolType: 'swidge',   ──HRPC──► │        └── orchestra
+  protocolName: 'orchestra',          │             ├─ account.transfer() ─► Arbitrum
+})                                    │             └─ HTTPS ─► orchestration.flashnet.xyz
+  .quoteSwidge(…)                     │
+  .prepareSwap(…)                     │
+  .executeSwapIntent(…)               │
+```
+
+`useProtocol` returns a Proxy: every method call is marshalled over the worklet's RPC and
+dispatched to `account.getSwidgeProtocol('orchestra')`. Private keys never leave the
+worklet, and no adapter code is needed — the WDK bridge already models swidge protocols
+as a first-class concept.
+
+**Source payments are gasless.** The starter runs Arbitrum as an ERC-4337 Safe account
+with a USDT paymaster, and Orchestra's source token for `arbitrum:USDT` is that same
+contract — so a demo wallet only ever needs USDT, never ETH.
+
+Click below to see the base wallet in action:
 
 [![Demo Video](assets/docs/demo-thumbnail.png)](assets/docs/demo.mp4)
 
@@ -49,19 +118,22 @@ For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.
 - **Wallet Naming**: Custom wallet names for better organization
 
 ### Asset Management
-- **Real-Time Balances**: Live balance updates via [WDK Indexer](https://docs.wallet.tether.io/)
-- **Transaction History**: Complete transaction tracking and history
+- **Real-Time Balances**: Live balance reads over each chain's RPC (no indexer key required)
 - **Price Conversion**: Real-time fiat pricing via Bitfinex integration
 - **Multi-Asset View**: Aggregate portfolio view across all tokens and chains
-- **Asset Details**: Detailed views for individual tokens with transaction history
+- **Asset Details**: Detailed per-token views with per-network balances
 
 ### User Experience
+- **Cross-Chain Swap**: Quote and execute Orchestra routes with live order tracking *(this fork)*
 - **QR Code Scanner**: Scan wallet addresses and payment requests via camera
 - **Send Flows**: Complete send flow with network and token selection
 - **Receive Flows**: Generate QR codes for receiving payments
-- **Activity Feed**: Real-time transaction monitoring with status updates
 - **Settings**: Wallet management, security, and app preferences
 - **Dark Mode**: Modern dark theme optimized for readability
+
+> [!NOTE]
+> A transaction history / activity feed is **not wired** in this fork — the upstream
+> starter's Activity section had no data source, so it is hidden rather than shown empty.
 
 ## 🧱 Platform Prerequisites
 
@@ -76,6 +148,55 @@ Clone this repository and install dependencies:
 ```bash
 npm install
 ```
+
+`postinstall` compiles the worklet bundle (`wdk.config.js` → `wdk-bundle/`, ~9 MB, about
+3 seconds). It is gitignored; rebuild any time with `npm run bundle`.
+
+## 🔄 Swap setup (this fork)
+
+Copy the env file and add a **scoped Flashnet client key**:
+
+```bash
+cp .env.example .env
+```
+
+```bash
+EXPO_PUBLIC_FLASHNET_API_KEY=your_scoped_client_key
+EXPO_PUBLIC_FLASHNET_AUTH_MODE=client
+```
+
+Quoting works **without a key**, so you can see live pricing immediately; the key is
+required to submit an order. `EXPO_PUBLIC_*` values are embedded in the built app and are
+not secret — see [docs/ORCHESTRA.md §5](docs/ORCHESTRA.md#5-api-keys-in-a-mobile-app).
+
+### Running a swap
+
+1. Create or import a wallet, then open **Swap** from the wallet screen.
+2. Fund the wallet's **Arbitrum** address (Settings → Wallet Addresses) with a small
+   amount of **USDT** — no ETH is needed, the ERC-4337 paymaster covers gas in USDT.
+   **~5 USDT is a comfortable demo amount**: routes enforce a minimum of roughly a
+   dollar, the flat protocol fee is 0.01, and gas is capped at 0.1 USDT per transfer.
+3. Pick what you pay with (USDT on Arbitrum or Polygon) and what you receive, then enter
+   an amount — or tap **Max**, which reserves the paymaster fee headroom automatically.
+   A live quote appears from Orchestra.
+4. Tap **Swap**. The source transfer is signed inside the worklet, submitted to
+   Orchestra, and the order card tracks status until it settles; the button offers
+   **New swap** once it does.
+
+Destination `BTC on Spark` settles fastest and lands back in the same wallet, which makes
+the round trip visible in-app.
+
+> [!TIP]
+> Don't swap your entire balance by typing it manually: the paymaster charges gas in the
+> same USDT you're sending, so a full-balance transfer leaves nothing to pay the fee and
+> the paymaster rejects the operation (`pm_getPaymasterData failed`). The **Max** button
+> exists precisely to keep that headroom for you.
+
+> [!CAUTION]
+> Orchestra routes are mainnet — a completed swap moves real funds. The screen uses the
+> two-step `prepareSwap()` → `executeSwapIntent()` path, but keeps the intent in React
+> state only. It is **not** persisted, so an app restart mid-swap loses the handle needed
+> to resume. See [docs/ORCHESTRA.md §6](docs/ORCHESTRA.md#6-before-you-use-this-with-real-money).
 
 ## 🔑 Environment Setup
 
@@ -96,7 +217,7 @@ cp .env.example .env
 
 ## 🔧 Provider Configuration (Recommended)
 
-**For Better Performance:** The app uses public RPC endpoints by default, which may have rate limits and variable performance. For a better experience, customize provider URLs in `src/config/get-chains-config.ts`:
+**For Better Performance:** The app uses public RPC endpoints by default, which may have rate limits and variable performance. (This fork already replaced two upstream defaults that had gone dead — `eth.merkle.io` and `polygon-rpc.com` — with PublicNode equivalents.) For a better experience, customize provider URLs in `src/config/get-chains-config.ts`:
 
 ### Customizable Endpoints
 
@@ -105,7 +226,7 @@ Edit `src/config/get-chains-config.ts` to update these provider URLs:
 **Ethereum**
 ```typescript
 ethereum: {
-  provider: 'https://eth.merkle.io',  // Replace with your Ethereum RPC URL
+  provider: 'https://ethereum-rpc.publicnode.com',  // Replace with your Ethereum RPC URL
   bundlerUrl: 'https://api.candide.dev/public/v3/ethereum',
   paymasterUrl: 'https://api.candide.dev/public/v3/ethereum',
 }
@@ -146,12 +267,12 @@ src/
 │   ├── wallet-setup/            # Wallet creation/import flows
 │   ├── wallet.tsx               # Main wallet dashboard
 │   ├── assets.tsx               # Asset list screen
-│   ├── activity.tsx             # Transaction history
 │   ├── send/                    # Send flow screens
 │   ├── receive/                 # Receive flow screens
 │   ├── authorize.tsx            # Biometric authentication
 │   ├── settings.tsx             # App settings
 │   ├── scan-qr.tsx              # QR code scanner
+│   ├── swap.tsx                 # [fork] Cross-chain swap via Flashnet Orchestra
 │   └── token-details.tsx        # Individual token details
 ├── components/                  # Reusable UI components
 │   ├── onboarding/              # Onboarding components
@@ -161,12 +282,15 @@ src/
 │   ├── assets.ts                # Token/asset configurations
 │   ├── avatar-options.ts        # Wallet avatar configurations
 │   ├── networks.ts              # Network configurations
-│   └── get-chains-config.ts     # Chain-specific settings & provider URLs
+│   ├── get-chains-config.ts     # Chain-specific settings & provider URLs
+│   ├── get-token-configs.ts     # Token metadata + IAsset list for balance queries
+│   └── get-wdk-configs.ts       # [fork] Worklet config; registers Orchestra as a swidge protocol
 ├── services/                    # Business logic & external services
 │   └── pricing-service.ts       # Fiat pricing via Bitfinex
 ├── hooks/                       # Custom React hooks
 │   ├── use-debounced-navigation.ts  # Debounced navigation to prevent rapid taps
 │   ├── use-keyboard.ts          # Keyboard visibility detection
+│   ├── use-wallet.ts            # [fork] Compatibility shim for the removed useWallet hook
 │   └── use-wallet-avatar.ts     # Wallet avatar management
 └── utils/                       # Utility functions
     ├── gas-fee-calculator.ts    # Gas fee estimation & network utilities
@@ -244,19 +368,23 @@ The app follows a clean architecture pattern with clear separation of concerns:
 This starter supports the following blockchain networks and operations:
 
 ### Mainnet Networks (ERC-4337 Safe Accounts)
-| Network | Account Type | Balance | History | Send | Receive | Gas Sponsorship |
-|---------|--------------|---------|---------|------|---------|-----------------|
-| **Ethereum** | Safe (ERC-4337) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Network | Account Type | Balance | Send | Receive | Swap source | Gas Sponsorship |
+|---------|--------------|---------|------|---------|-------------|-----------------|
+| **Ethereum** | Safe (ERC-4337) | ✅ | ✅ | ✅ | — | ✅ |
 | **Polygon** | Safe (ERC-4337) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Arbitrum** | Safe (ERC-4337) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Plasma** | Safe (ERC-4337) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Spark** | Native (Bitcoin) | ✅ | ✅ | ✅ | ✅ | N/A |
+| **Plasma** | Safe (ERC-4337) | ✅ | ✅ | ✅ | — | ✅ |
+| **Spark** | Native (Bitcoin) | ✅ | ✅ | ✅ | — | N/A |
 
 ### Testnet Networks
-| Network | Account Type | Balance | History | Send | Receive | Gas Sponsorship |
-|---------|--------------|---------|---------|------|---------|-----------------|
-| **Sepolia** | Safe (ERC-4337) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Spark (Regtest)** | Native (Bitcoin) | ✅ | ✅ | ✅ | ✅ | N/A |
+| Network | Account Type | Balance | Send | Receive | Swap source | Gas Sponsorship |
+|---------|--------------|---------|------|---------|-------------|-----------------|
+| **Sepolia** | Safe (ERC-4337) | ✅ | ✅ | ✅ | — | ✅ |
+| **Spark (Regtest)** | Native (Bitcoin) | ✅ | ✅ | ✅ | — | N/A |
+
+Orchestra routes are mainnet-only, so the swap screen is a mainnet feature. Adding more
+swap source chains is one config entry — see `ORCHESTRA_SOURCE_CHAINS` in
+[`src/config/get-wdk-configs.ts`](src/config/get-wdk-configs.ts).
 
 ### Token Support
 
@@ -270,7 +398,7 @@ This starter supports the following blockchain networks and operations:
 - **ERC-4337 Safe Accounts**: All EVM networks use Safe smart contract accounts for enhanced security and flexibility
 - **Gas Sponsorship**: EVM networks (Ethereum, Polygon, Arbitrum, Plasma) offer gasless transactions via paymasters - users don't need native tokens for gas
 - **Multi-Network**: Send the same token across different networks based on preference and fees
-- **Real-Time Data**: Live balance and transaction updates via WDK Indexer
+- **Real-Time Data**: Live balance updates read directly from each chain's RPC
 - **QR Code Support**: Generate and scan QR codes for easy address sharing
 
 ## 🔒 Security Features
@@ -429,6 +557,75 @@ cd android && ./gradlew clean
 ```bash
 npm run typecheck
 ```
+
+**`Unicode Normalization not appropriate for ASCII-8BIT` during `pod install`**
+
+A CocoaPods/Ruby 4.x incompatibility, not a project problem — CocoaPods needs a UTF-8
+locale. `npm run ios` sets one for you (it also covers the `pod install` that
+`expo run:ios` runs internally). If you invoke CocoaPods directly:
+
+```bash
+cd ios && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install
+```
+
+**`pod install` fails cloning a pod (`RPC failed; curl 92 ... HTTP/2 stream`)**
+
+A transient GitHub HTTP/2 issue. Retry over HTTP/1.1 without touching your global
+git config:
+
+```bash
+cd ios && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.version GIT_CONFIG_VALUE_0=HTTP/1.1 pod install
+```
+
+**`pod install` fails: "The following Swift pods cannot yet be integrated as static libraries"**
+
+The Spark wallet module pulls in gRPC-Swift and SwiftNIO, whose C targets don't define
+modules. Fixed by [`plugins/withIosModularHeaders.js`](plugins/withIosModularHeaders.js),
+which adds `use_modular_headers!` to the Podfile. If you see this, the plugin isn't
+registered in `app.json` or the Podfile is stale — re-run:
+
+```bash
+npx expo prebuild --platform ios
+```
+
+**Swap screen says "No route available"**
+
+Orchestra enforces route minimums. Try a larger amount, and check the pair is live in
+the [route matrix](https://orchestration.flashnet.xyz/v1/orchestration/routes).
+
+**`No swidge protocol registered for label: orchestra`** (registration reports success)
+
+Almost always a **duplicate `@tetherto/wdk-wallet` in the bundle**. The Orchestra package
+pins an exact older version, so npm nests a second copy under it and the bundle ends up
+with two `SwidgeProtocol` base classes. WDK's `registerProtocol()` checks
+`instanceof SwidgeProtocol` against *its* copy and silently registers nothing — every
+layer reports success, then the lookup throws. This repo fixes it with an `overrides`
+entry in `package.json` forcing the hoisted version, **but overrides only apply through
+the lockfile** — if you changed dependencies, regenerate it:
+
+```bash
+rm -rf node_modules package-lock.json && npm install
+```
+
+The same rule applies to the other three overrides (`react-native-mmkv`, `expo-crypto`,
+`expo-local-authentication`), which hold transitive native modules back to versions
+compatible with Expo SDK 54 — `npm ls react-native-mmkv` should report exactly one
+version, not `invalid`.
+
+**`Module not initialized: orchestra` / protocol not found**
+
+The worklet bundle is stale or missing. Rebuild it and restart Metro:
+
+```bash
+npm run bundle && npx expo start -c
+```
+
+**"Failed to fetch balance" toasts for one chain (RPC 403/401)**
+
+Free public RPC endpoints rot over time — upstream's Ethereum and Polygon defaults both
+died and were replaced in this fork. If a chain's balance fetch starts failing, test the
+`provider` URL in [`src/config/get-chains-config.ts`](src/config/get-chains-config.ts)
+with a curl `eth_chainId` call and swap in a live endpoint.
 
 ### Development Tips
 - Use Expo Dev Client for faster development cycles

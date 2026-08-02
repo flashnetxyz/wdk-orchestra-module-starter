@@ -15,16 +15,16 @@
 import { assetConfig, AssetTicker } from '@/config/assets';
 import { NetworkType, networkConfigs } from '@/config/networks';
 import formatAmount from '@/utils/format-amount';
-import { useWallet, useWalletManager, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useWalletManager, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { useWallet } from '@/hooks/use-wallet';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TokenDetails } from '../components/TokenDetails';
 import { FiatCurrency, pricingService } from '../services/pricing-service';
-import getTokenConfigs from '../config/get-token-configs';
+import getTokenConfigs, { getAssetMeta, getAssets } from '../config/get-token-configs';
 import getDisplaySymbol from '@/utils/get-display-symbol';
 import Header from '@/components/header';
 import { colors } from '@/constants/colors';
@@ -56,8 +56,13 @@ export default function TokenDetailsScreen() {
     return getTokenConfigs(networkMode);
   }, [networkMode, networkModeLoaded]);
 
-  const { data: balanceResults, isLoading } = useBalancesForWallet(0, tokenConfigs, {
-    enabled: isInitialized && networkModeLoaded && Object.keys(tokenConfigs).length > 0,
+  const balanceAssets = useMemo(() => {
+    if (!networkModeLoaded) return [];
+    return getAssets(networkMode);
+  }, [networkMode, networkModeLoaded]);
+
+  const { data: balanceResults, isLoading } = useBalancesForWallet(0, balanceAssets, {
+    enabled: isInitialized && networkModeLoaded && balanceAssets.length > 0,
   });
 
   const tokenSymbol = params.token?.toLowerCase() as keyof typeof assetConfig;
@@ -94,19 +99,9 @@ export default function TokenDetailsScreen() {
         const networkTokens = tokenConfigs[result.network];
         if (!networkTokens) return;
 
-        let matchedSymbol = '';
-        let decimals = 18;
-
-        if (result.tokenAddress === null) {
-          matchedSymbol = networkTokens.native.symbol.toLowerCase();
-          decimals = networkTokens.native.decimals;
-        } else {
-          const token = networkTokens.tokens.find((t) => t.address?.toLowerCase() === result.tokenAddress?.toLowerCase());
-          if (token) {
-            matchedSymbol = token.symbol.toLowerCase();
-            decimals = token.decimals;
-          }
-        }
+        const meta = getAssetMeta(tokenConfigs, result.network, result.assetId);
+        const matchedSymbol = meta ? meta.config.symbol.toLowerCase() : '';
+        const decimals = meta?.config.decimals ?? 18;
 
         if (matchedSymbol !== tokenSymbol) return;
 
@@ -120,7 +115,10 @@ export default function TokenDetailsScreen() {
               ? addressData
               : '';
 
-        const current = networkBalancesMap.get(result.network) || { balance: 0, address: addressStr };
+        const current = networkBalancesMap.get(result.network) || {
+          balance: 0,
+          address: addressStr,
+        };
         networkBalancesMap.set(result.network, {
           balance: current.balance + balanceNum,
           address: addressStr,
@@ -144,7 +142,11 @@ export default function TokenDetailsScreen() {
         (item) => item.balance > 0
       );
 
-      const tokenPrice = await pricingService.getFiatValue(1, tokenSymbol as AssetTicker, FiatCurrency.USD);
+      const tokenPrice = await pricingService.getFiatValue(
+        1,
+        tokenSymbol as AssetTicker,
+        FiatCurrency.USD
+      );
       const totalUSDValue = await pricingService.getFiatValue(
         totalBalance,
         tokenSymbol as AssetTicker,

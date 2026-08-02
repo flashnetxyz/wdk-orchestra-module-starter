@@ -24,7 +24,7 @@ import getErrorMessage from '@/utils/get-error-message';
 export default function AuthorizeScreen() {
   const insets = useSafeAreaInsets();
   const router = useDebouncedNavigation();
-  const { hasWallet, initializeWallet, deleteWallet, wallets } = useWalletManager();
+  const { unlock, deleteWallet, wallets } = useWalletManager();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +45,7 @@ export default function AuthorizeScreen() {
 
     try {
       const walletId = wallets[0].identifier;
-      await initializeWallet({ walletId });
+      await unlock(walletId);
       router.replace('/wallet');
     } catch (error) {
       console.error('Failed to unlock wallet:', error);
