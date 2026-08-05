@@ -33,23 +33,7 @@ dependency points at a deleted branch over `git+ssh`. This fork moves to the pub
 `1.0.0-beta.15`, whose API differs enough to require mechanical updates across the wallet
 screens (hook renames, `IAsset[]` balance queries, `assetId` instead of `tokenAddress`).
 
-[docs/ORCHESTRA.md](docs/ORCHESTRA.md) documents that migration in full, with a
-before/after table.
-
-Finally, the fork carries a handful of **fixes and polish to the base wallet** that a
-demo surfaces quickly (upstream candidates, kept in separate files/commits so they are
-easy to cherry-pick):
-
-- Replaced two dead default RPC endpoints (`eth.merkle.io` now serves a Cloudflare 403,
-  `polygon-rpc.com` a 401) with PublicNode equivalents in
-  [`src/config/get-chains-config.ts`](src/config/get-chains-config.ts).
-- Pricing-service hardening: initialise at the root layout (not only the `/` route), let
-  a failed initialise retry, and stop a single failed price lookup from blanking the
-  whole asset list ([details](src/services/pricing-service.ts)).
-- Wallet home: action bar is Send / Swap / Receive, the unwired Activity section is
-  removed, and asset logos render without background disks.
-- Spark network branding: the Spark asterisk mark ([`assets/images/chains/spark-logo.png`](assets/images/chains/spark-logo.png),
-  from the official WDK docs assets) instead of the Bitcoin logo.
+[docs/ORCHESTRA.md](docs/ORCHESTRA.md) documents the integration in full.
 
 ## How it works
 
@@ -167,7 +151,7 @@ EXPO_PUBLIC_FLASHNET_AUTH_MODE=client
 
 Quoting works **without a key**, so you can see live pricing immediately; the key is
 required to submit an order. `EXPO_PUBLIC_*` values are embedded in the built app and are
-not secret — see [docs/ORCHESTRA.md §5](docs/ORCHESTRA.md#5-api-keys-in-a-mobile-app).
+not secret — see [docs/ORCHESTRA.md §3](docs/ORCHESTRA.md#3-api-keys-in-a-mobile-app).
 
 ### Running a swap
 
@@ -196,7 +180,7 @@ the round trip visible in-app.
 > Orchestra routes are mainnet — a completed swap moves real funds. The screen uses the
 > two-step `prepareSwap()` → `executeSwapIntent()` path, but keeps the intent in React
 > state only. It is **not** persisted, so an app restart mid-swap loses the handle needed
-> to resume. See [docs/ORCHESTRA.md §6](docs/ORCHESTRA.md#6-before-you-use-this-with-real-money).
+> to resume. See [docs/ORCHESTRA.md §4](docs/ORCHESTRA.md#4-before-you-use-this-with-real-money).
 
 ## 🔑 Environment Setup
 

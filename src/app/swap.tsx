@@ -89,16 +89,18 @@ type OrchestraSwidge = {
 };
 
 /** Decimals for tokens fees can be quoted in; stablecoins default to 6. */
-const FEE_DECIMALS: Record<string, number> = { USDT: 6, USDC: 6, BTC: 8, ETH: 18 };
+const FEE_DECIMALS: Record<string, number> = { USDT: 6, USDC: 6, BTC: 8, ETH: 18, SOL: 9 };
 
 /**
  * Source options — each is a chain Orchestra was registered on in
- * get-wdk-configs.ts, running as an ERC-4337 account with a USDT paymaster
- * so the source payment stays gasless.
+ * get-wdk-configs.ts. The EVM chains run as ERC-4337 accounts with a USDT
+ * paymaster so their source payment stays gasless; Solana is a plain wallet
+ * whose SPL transfer pays its (tiny) fee in SOL.
  */
 const SOURCES = [
   { chain: 'arbitrum', asset: 'USDT', label: 'Tether USD', decimals: 6 },
   { chain: 'polygon', asset: 'USDT', label: 'Tether USD', decimals: 6 },
+  { chain: 'solana', asset: 'USDT', label: 'Tether USD', decimals: 6 },
 ] as const;
 
 type Source = (typeof SOURCES)[number];
@@ -118,6 +120,7 @@ const DESTINATIONS = [
   { chain: 'spark', asset: 'BTC', label: 'Bitcoin', decimals: 8 },
   { chain: 'ethereum', asset: 'USDT', label: 'Tether USD', decimals: 6 },
   { chain: 'polygon', asset: 'USDT', label: 'Tether USD', decimals: 6 },
+  { chain: 'solana', asset: 'USDT', label: 'Tether USD', decimals: 6 },
 ] as const;
 
 type Destination = (typeof DESTINATIONS)[number];
@@ -232,11 +235,14 @@ export default function SwapScreen() {
   const balanceBase = readBalance(sourceAssetId);
   const destinationBalanceBase = readBalance(destinationAssetId);
 
-  // Gas comes out of the same token via the paymaster, capped at the module's
-  // transferMaxFee (in base units — see the wallet-modules docs). Max reserves
-  // that cap: swapping the full balance leaves nothing to pay the fee with,
-  // and the paymaster rejects the operation at pm_getPaymasterData.
-  const feeReserve = getChainsConfig()[source.chain]?.transferMaxFee ?? 0;
+  // On paymaster chains gas comes out of the same token, capped at the
+  // module's transferMaxFee (in base units — see the wallet-modules docs).
+  // Max reserves that cap: swapping the full balance leaves nothing to pay
+  // the fee with, and the paymaster rejects at pm_getPaymasterData. Chains
+  // that pay fees in their native coin (Solana) set no reserve.
+  const sourceChainConfig = getChainsConfig()[source.chain];
+  const gaslessSource = Boolean(sourceChainConfig?.paymasterUrl);
+  const feeReserve = sourceChainConfig?.transferMaxFee ?? 0;
   const maxBase = balanceBase !== null ? BigInt(balanceBase) - BigInt(feeReserve) : null;
 
   const handleMax = useCallback(() => {
@@ -286,6 +292,9 @@ export default function SwapScreen() {
     let cancelled = false;
     setIsQuoting(true);
 
+    // quoteSwidge() prices the route: what the destination side receives for
+    // this source amount, plus itemised fees and an ETA. Read-only — no order
+    // is created and no funds move, so it's safe to call on every edit.
     const timer = setTimeout(async () => {
       try {
         const next = await orchestra.quoteSwidge(await buildRouteOptions(baseAmount));
@@ -363,8 +372,9 @@ export default function SwapScreen() {
     }
   }, [baseAmount, quote, buildRouteOptions, orchestra, refetchBalance]);
 
-  // Poll until the order reaches a terminal state. The whole state object is
-  // passed back so the readToken travels with it.
+  // Poll getOrderStatus until the order hits a terminal state. Pass the whole
+  // state object, not just the order id — it carries the read token that status
+  // calls need. Bridging and settlement happen on Flashnet's side.
   useEffect(() => {
     if (!state?.orderId || !orderStatus || TERMINAL_STATUSES.includes(orderStatus)) return;
 
@@ -450,10 +460,12 @@ export default function SwapScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardLabel}>You pay</Text>
-              <View style={styles.gaslessTag}>
-                <Zap size={11} color={colors.primary} />
-                <Text style={styles.gaslessTagText}>Gasless</Text>
-              </View>
+              {gaslessSource && (
+                <View style={styles.gaslessTag}>
+                  <Zap size={11} color={colors.primary} />
+                  <Text style={styles.gaslessTagText}>Gasless</Text>
+                </View>
+              )}
             </View>
             <View style={styles.cardRow}>
               <TextInput
@@ -571,7 +583,11 @@ export default function SwapScreen() {
                   value={`${fromBaseUnits(fee.amount, FEE_DECIMALS[fee.token] ?? 6)} ${fee.token}`}
                 />
               ))}
-              <QuoteRow label="Network fee" value="Paid in USDT via paymaster" />
+              {/* Solana is the only non-paymaster source chain today. */}
+              <QuoteRow
+                label="Network fee"
+                value={gaslessSource ? 'Paid in USDT via paymaster' : 'Paid in SOL'}
+              />
             </View>
           )}
 

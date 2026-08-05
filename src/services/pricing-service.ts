@@ -56,6 +56,7 @@ class PricingService {
           btc: await provider.getLastPrice('btc', FiatCurrency.USD),
           usdt: 1,
           xaut: await provider.getLastPrice('xaut', FiatCurrency.USD),
+          sol: await provider.getLastPrice('sol', FiatCurrency.USD),
         },
       };
 
@@ -91,6 +92,7 @@ class PricingService {
           btc: await this.provider.getLastPrice('btc', FiatCurrency.USD),
           usdt: 1,
           xaut: await this.provider.getLastPrice('xaut', FiatCurrency.USD),
+          sol: await this.provider.getLastPrice('sol', FiatCurrency.USD),
         },
       };
 

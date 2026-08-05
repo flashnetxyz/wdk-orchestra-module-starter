@@ -30,7 +30,7 @@ type ChainConfig = {
   network?: SparkNetworkMode;
 };
 
-const MAINNET_CHAINS: string[] = ['ethereum', 'polygon', 'arbitrum', 'spark', 'plasma'];
+const MAINNET_CHAINS: string[] = ['ethereum', 'polygon', 'arbitrum', 'spark', 'plasma', 'solana'];
 const TESTNET_CHAINS: string[] = ['sepolia', 'spark'];
 
 const getChainsConfig = (
@@ -67,6 +67,14 @@ const getChainsConfig = (
       chainId: 99999,
       blockchain: 'spark',
       network: sparkNetwork,
+    },
+    solana: {
+      // Solana has no EVM chain id; SLIP-44 coin type used as a placeholder.
+      chainId: 501,
+      blockchain: 'solana',
+      provider: 'https://api.mainnet-beta.solana.com',
+      // No transferMaxFee: SPL transfer fees are paid in SOL, so there is no
+      // USDT reserve for the swap screen's Max button to hold back.
     },
     ethereum: {
       chainId: 1,

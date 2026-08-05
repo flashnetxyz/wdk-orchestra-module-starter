@@ -32,7 +32,7 @@ export type TokenConfig = {
  */
 export type TokenConfigs = Record<string, { native: TokenConfig; tokens: TokenConfig[] }>;
 
-const MAINNET_NETWORKS: string[] = ['ethereum', 'polygon', 'arbitrum', 'spark', 'plasma'];
+const MAINNET_NETWORKS: string[] = ['ethereum', 'polygon', 'arbitrum', 'spark', 'plasma', 'solana'];
 const TESTNET_NETWORKS: string[] = ['sepolia', 'spark'];
 
 const ALL_TOKEN_CONFIGS: TokenConfigs = {
@@ -54,6 +54,18 @@ const ALL_TOKEN_CONFIGS: TokenConfigs = {
   spark: {
     native: { address: null, symbol: 'BTC', name: 'Bitcoin', decimals: 8 },
     tokens: [],
+  },
+  solana: {
+    native: { address: null, symbol: 'SOL', name: 'Solana', decimals: 9 },
+    tokens: [
+      {
+        // SPL token mint, from the Orchestra route matrix.
+        address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+        symbol: 'USDT',
+        name: 'Tether USD',
+        decimals: 6,
+      },
+    ],
   },
   ethereum: {
     native: { address: null, symbol: 'ETH', name: 'Ethereum', decimals: 18 },

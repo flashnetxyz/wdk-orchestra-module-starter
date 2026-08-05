@@ -14,11 +14,19 @@
 
 import {
   validateEvmAddress,
+  validateSolanaAddress,
   validateSparkAddress,
   AddressValidator,
 } from '@/utils/address-validators';
 
-export type NetworkType = 'ethereum' | 'polygon' | 'arbitrum' | 'spark' | 'plasma' | 'sepolia';
+export type NetworkType =
+  | 'ethereum'
+  | 'polygon'
+  | 'arbitrum'
+  | 'spark'
+  | 'plasma'
+  | 'sepolia'
+  | 'solana';
 export type AccountType = 'Safe' | 'Native';
 
 export interface Network {
@@ -83,6 +91,17 @@ export const networkConfigs: Record<NetworkType, Network> = {
     accountType: 'Native',
     addressValidator: validateSparkAddress,
     explorerUrl: 'https://sparkscan.io/tx/',
+  },
+  solana: {
+    id: 'solana',
+    name: 'Solana',
+    gasLevel: 'Low',
+    gasColor: '#34C759',
+    icon: require('../../assets/images/chains/solana-sol-logo.png'),
+    color: '#9945FF',
+    accountType: 'Native',
+    addressValidator: validateSolanaAddress,
+    explorerUrl: 'https://solscan.io/tx/',
   },
   plasma: {
     id: 'plasma',

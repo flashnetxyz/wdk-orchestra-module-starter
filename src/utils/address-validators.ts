@@ -30,6 +30,19 @@ export function validateEvmAddress(address: string): AddressValidationResult {
   return { valid: true };
 }
 
+export function validateSolanaAddress(address: string): AddressValidationResult {
+  const isValid = WAValidator.validate(address, 'sol');
+
+  if (!isValid) {
+    return {
+      valid: false,
+      error: 'Invalid Solana address. Please check the address and try again.',
+    };
+  }
+
+  return { valid: true };
+}
+
 export function validateBitcoinAddress(address: string): AddressValidationResult {
   const isValid = WAValidator.validate(address, 'btc');
 

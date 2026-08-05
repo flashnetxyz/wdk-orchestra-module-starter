@@ -20,6 +20,8 @@ module.exports = {
     plasma: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     sepolia: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     spark: { package: '@tetherto/wdk-wallet-spark' },
+    // Plain (non-gasless) Solana wallet: SPL transfers pay fees in SOL.
+    solana: { package: '@tetherto/wdk-wallet-solana' },
   },
 
   // Protocol modules. `orchestra` is the only addition this fork makes to the

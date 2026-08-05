@@ -34,7 +34,7 @@ export interface Asset {
   color: string;
 }
 
-export type AssetTicker = 'btc' | 'usdt' | 'xaut';
+export type AssetTicker = 'btc' | 'usdt' | 'xaut' | 'sol';
 
 export const assetConfig: Record<string, AssetConfig> = {
   btc: {
@@ -49,7 +49,14 @@ export const assetConfig: Record<string, AssetConfig> = {
     symbol: 'USD₮',
     icon: require('../../assets/images/tokens/tether-usdt-logo.png'),
     color: 'transparent',
-    supportedNetworks: ['ethereum', 'polygon', 'arbitrum', 'plasma', 'sepolia'],
+    supportedNetworks: ['ethereum', 'polygon', 'arbitrum', 'plasma', 'sepolia', 'solana'],
+  },
+  sol: {
+    name: 'Solana',
+    symbol: 'SOL',
+    icon: require('../../assets/images/chains/solana-sol-logo.png'),
+    color: 'transparent',
+    supportedNetworks: ['solana'],
   },
   xaut: {
     name: 'XAU₮',

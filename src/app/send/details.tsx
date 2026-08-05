@@ -476,8 +476,9 @@ export default function SendDetailsScreen() {
 
       let transferParams: Record<string, unknown>;
 
-      if (networkId === 'spark') {
-        // Spark WDK: sendTransaction({ to, value }) for native BTC
+      if (networkId === 'spark' || (networkId === 'solana' && tokenAddress === null)) {
+        // Native-coin sends — BTC on Spark, SOL on Solana — use
+        // sendTransaction({ to, value }); transfer() is token-only on both.
         transferParams = {
           to: recipientAddress,
           value: Number(amountInSmallestUnit),
@@ -488,6 +489,14 @@ export default function SendDetailsScreen() {
         setShowConfirmation(true);
         toast.success('Transaction sent successfully!');
         return;
+      } else if (networkId === 'solana') {
+        // SPL token transfer. Fees are paid in SOL, so there is no
+        // transferMaxFee option — the Solana module caps fees via chain config.
+        transferParams = {
+          token: tokenContractAddress,
+          recipient: recipientAddress,
+          amount: Number(amountInSmallestUnit),
+        };
       } else {
         const maxFeeByNetwork: Record<string, number> = {
           ethereum: 2000000, // 2 USDT for Ethereum mainnet (higher gas)

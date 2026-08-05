@@ -23,8 +23,9 @@ import { NetworkMode } from '@/services/network-mode-service';
  * Arbitrum is the default because the starter already runs it as an ERC-4337
  * smart account with a USDT paymaster — so the source transfer is gasless and
  * a demo wallet only ever needs USDT, never ETH. Polygon works the same way.
+ * Solana uses a plain wallet instead, so its source payment pays fees in SOL.
  */
-export const ORCHESTRA_SOURCE_CHAINS = ['arbitrum', 'polygon'] as const;
+export const ORCHESTRA_SOURCE_CHAINS = ['arbitrum', 'polygon', 'solana'] as const;
 
 /** Default source chain for the swap screen. */
 export const ORCHESTRA_SOURCE_CHAIN = 'arbitrum';
@@ -43,6 +44,7 @@ export const ORCHESTRA_SOURCE_TOKENS: Record<string, string> = {
   'arbitrum:USDT': '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
   'ethereum:USDT': '0xdAC17F958D2ee523a2206206994597C13D831ec7',
   'polygon:USDT': '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+  'solana:USDT': 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
 };
 
 /**

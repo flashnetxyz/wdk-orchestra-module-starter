@@ -46,6 +46,7 @@ const NETWORK_DESCRIPTIONS: Record<string, string> = {
   spark: 'Spark Network',
   plasma: 'Plasma Network',
   sepolia: 'Sepolia Testnet',
+  solana: 'SPL',
 };
 
 export default function ReceiveSelectNetworkScreen() {

@@ -81,7 +81,7 @@ npm run bundle
 registers one Orchestra per source chain in a loop:
 
 ```ts
-for (const sourceChain of ORCHESTRA_SOURCE_CHAINS) {   // ['arbitrum', 'polygon']
+for (const sourceChain of ORCHESTRA_SOURCE_CHAINS) {   // ['arbitrum', 'polygon', 'solana']
   protocols[`orchestra-${sourceChain}`] = {
     blockchain: sourceChain,      // which account gains getSwidgeProtocol()
     protocolName: 'orchestra',    // must match the wdk.config.js key
@@ -100,114 +100,7 @@ That's the whole integration surface.
 
 ---
 
-## 3. Things that will bite you
-
-### A nested `@tetherto/wdk-wallet` silently breaks registration
-
-The Orchestra package pins an exact older `@tetherto/wdk-wallet`, so npm nests a second
-copy under it and the worklet bundle ends up with **two `SwidgeProtocol` base classes**.
-`registerProtocol()` gates on `Protocol.prototype instanceof SwidgeProtocol` against
-*its* copy — and has no else branch — so with mismatched identities it registers nothing
-while every layer reports success. The first error you see is much later:
-`No swidge protocol registered for label: orchestra`.
-
-This repo's fix is an `overrides` entry in `package.json` forcing the hoisted version.
-Overrides only take effect through the lockfile — after dependency changes, regenerate it
-(`rm -rf node_modules package-lock.json && npm install`) and confirm the bundle contains
-a single copy.
-
-### Cross-chain routes need an explicit `refundAddress`
-
-The module defaults `refundChain` to the source chain but leaves `refundAddress` empty,
-and the API rejects that pairing at order creation (`refundChain requires
-refundAddress`). Pass the wallet's own source-chain address — a failed or expired order
-then refunds straight back to the account that paid.
-
-### Don't spend the entire balance when fees are charged in the same token
-
-With a token paymaster, gas comes out of the same USDT being transferred. A full-balance
-transfer leaves nothing for the fee, and the paymaster rejects the operation during
-pre-flight (`PAYMASTER_ERROR: pm_getPaymasterData failed`) — before anything is signed
-or broadcast. Reserve the module's `transferMaxFee` (this fork's **Max** button does
-exactly that).
-
-### Amounts cross the bridge as strings
-
-The worklet serialises `BigInt` to a decimal string (`safeStringify`). So `SwidgeQuote`
-says `fromTokenAmount: bigint`, but what arrives in React is `"2000000"`. Passing a real
-`BigInt` *into* a call fails to serialise — pass strings. Orchestra accepts
-`number | bigint | string` for amounts.
-
-### Cross-chain destinations need an explicit recipient
-
-Orchestra only auto-fills the recipient when the destination chain equals the source
-chain:
-
-```js
-async _defaultRecipientAddress (destinationChain) {
-  if (normalizeChain(destinationChain) !== this._defaultSourceChain()) return undefined
-  return await this._account.getAddress()
-}
-```
-
-For any cross-chain route you must pass `recipient`. The swap screen resolves it from the
-wallet's own address for that chain, which keeps funds in-app.
-
-### Fees are itemised and may use a different token
-
-A USDT-in route can return a protocol fee denominated in **USDC**. Don't sum fee amounts
-across entries — render each with its own `fee.token`.
-
-### `useProtocol` returns `undefined`, it does not throw
-
-If the wallet isn't ready, the proxy logs and resolves `undefined`. Check the result.
-
----
-
-## 4. Why this fork upgrades `wdk-react-native-core`
-
-Upstream `develop` pins:
-
-```json
-"@tetherto/wdk-react-native-core": "github:tetherto/wdk-react-native-core#0b2be6eb…"
-```
-
-Two problems:
-
-1. **That commit has no `useProtocol`.** Its `AccountService.callAccountMethod` never
-   forwards an `options` object, so there is no way to reach `getSwidgeProtocol` at all.
-2. **It doesn't install.** That version depends on `github:tetherto/pear-wrk-wdk#v2`, and
-   the `v2` branch no longer exists. The committed lockfile resolves it over `git+ssh`,
-   which also requires every contributor to have GitHub SSH access — unacceptable for a
-   repo meant to be forked.
-
-So this fork moves to the published `1.0.0-beta.15`, whose most recent upstream commit is
-literally `feat/add-swidge`, and which depends on `@tetherto/pear-wrk-wdk@1.0.0-beta.10`
-from npm.
-
-### What that migration changed
-
-`beta.15` reorganised several APIs. The app-side changes:
-
-| Before | After |
-| --- | --- |
-| `useWallet()` | Split into `useWdkApp()` + `useAddresses()`; reassembled by [`src/hooks/use-wallet.ts`](../src/hooks/use-wallet.ts) |
-| `useWallet().callAccountMethod(net, i, m, args)` | `useAccount({network, accountIndex}).extension()[m](args)` |
-| `useWalletManager().initializeFromMnemonic(m, id)` | `restoreWallet(m, id)` |
-| `useWalletManager().initializeWallet({walletId})` | `unlock(walletId)` |
-| `useWalletManager().hasWallet` | `wallets.length > 0` |
-| `useWalletManager().refreshWalletList()` | removed; the list is reactive |
-| `useBalancesForWallet(i, tokenConfigs, …)` | takes a flat `IAsset[]` — see `getAssets()` |
-| `BalanceFetchResult.tokenAddress` | `BalanceFetchResult.assetId` |
-| `WdkAppProvider networkConfigs/tokenConfigs` | `bundle` + `wdkConfigs` |
-| `TokenConfigs` type export | defined locally in `get-token-configs.ts` |
-
-The `useWallet` shim exists so the screens read the same as upstream, which keeps the
-diff reviewable and makes it easier to track future upstream changes.
-
----
-
-## 5. API keys in a mobile app
+## 3. API keys in a mobile app
 
 Anything prefixed `EXPO_PUBLIC_` is **embedded in the shipped bundle** and readable by
 anyone who unzips the `.ipa` or `.apk`. It is not a secret.
@@ -223,7 +116,7 @@ credentials.
 
 ---
 
-## 6. Before you use this with real money
+## 4. Before you use this with real money
 
 `quoteSwidge()` is side-effect-free. Executing **moves funds** — the source payment is
 sent from the wallet account and only then is its transaction id submitted to Orchestra.
@@ -254,7 +147,7 @@ to storage — and recover with `submitSourceTx()` / `resumeSwap()`. See the ups
 
 ---
 
-## 7. Choosing routes
+## 5. Choosing routes
 
 The live matrix (~2,800 routes) is public:
 
@@ -262,8 +155,10 @@ The live matrix (~2,800 routes) is public:
 curl -s https://orchestration.flashnet.xyz/v1/orchestration/routes | jq '.routes | length'
 ```
 
-Source chains this wallet registers today: `arbitrum` and `polygon` (see
+Source chains this wallet registers today: `arbitrum`, `polygon`, and `solana` (see
 `ORCHESTRA_SOURCE_CHAINS` in [`src/config/get-wdk-configs.ts`](../src/config/get-wdk-configs.ts)).
+The EVM sources pay gas in USDT via their paymaster; the Solana source is a plain
+wallet, so its SPL transfer needs a little SOL for fees.
 The swap screen limits destinations to chains the wallet also holds an address for, so
 swapped funds land back in the app — edit `SOURCES` and `DESTINATIONS` in
 [`src/app/swap.tsx`](../src/app/swap.tsx) to change either side.
