@@ -57,3 +57,6 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+# Markdown: prettier's prose re-flow joins GitHub alert markers ([!WARNING])
+# onto the following line, which breaks how GitHub renders them.
+*.md
