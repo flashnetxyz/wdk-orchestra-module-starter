@@ -144,7 +144,8 @@
     },
     "@tetherto/wdk-wallet-solana": {
       "@tetherto/wdk-wallet": "1.0.0-beta.15"
-    }
+    },
+    "react-server-dom-webpack": "19.0.9"
   },
   "peerDependencies": {
     "react": "19.1.0",
